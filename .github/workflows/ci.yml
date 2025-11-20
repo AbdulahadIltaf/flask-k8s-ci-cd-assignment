@@ -1,5 +1,6 @@
-name: CI Pipeline
+name: Continuous Integration Pipeline
 
+# Workflow triggers on code pushes and pull requests
 on:
   push:
     branches: [ develop, main, feature/* ]
@@ -7,40 +8,42 @@ on:
     branches: [ develop, main ]
 
 jobs:
+  # Job 1: Execute code quality checks and unit tests
   test:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout code
+    - name: Retrieve source code
       uses: actions/checkout@v3
     
-    - name: Set up Python
+    - name: Configure Python environment
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
     
-    - name: Install dependencies
+    - name: Install project dependencies
       run: |
         pip install -r requirements.txt
         pip install pytest flake8
     
-    - name: Run Flake8 linting
+    - name: Execute Flake8 code style validation
       run: |
-        # Check code style with max line length of 90 characters
+        # Validate code style with 90 character line length limit
         flake8 --max-line-length=90 app.py utils.py
     
-    - name: Run unit tests with pytest
+    - name: Execute unit test suite
       run: |
         python -m pytest tests/ -v
     
+  # Job 2: Build Docker container image
   build:
     runs-on: ubuntu-latest
-    needs: test
+    needs: test  # Build only runs after tests pass
     
     steps:
-    - name: Checkout code
+    - name: Retrieve source code
       uses: actions/checkout@v3
     
-    - name: Build Docker image
+    - name: Build container image
       run: |
         docker build -t flask-app:latest .

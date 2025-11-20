@@ -3,12 +3,16 @@ kind: Service
 metadata:
   name: flask-service
   namespace: flask-app
+  labels:
+    app: flask-app
 spec:
+  # Selector matches pods with this label
   selector:
     app: flask-app
   ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 5000
-      nodePort: 30008  # Ensure this is free in Minikube
-  type: NodePort
+    - name: http
+      protocol: TCP
+      port: 80              # Service port
+      targetPort: 5000      # Container port
+      nodePort: 30008       # External access port (30000-32767 range)
+  type: NodePort            # Exposes service on each node's IP
