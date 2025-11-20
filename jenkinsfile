@@ -1,0 +1,114 @@
+// Declarative Jenkins Pipeline for Flask Kubernetes Deployment
+pipeline {
+    agent any
+    
+    environment {
+        DOCKER_IMAGE_NAME = 'flask-app'
+        K8S_NAMESPACE = 'flask-app'
+        DEPLOYMENT_NAME = 'flask-app'
+    }
+    
+    stages {
+        // Stage 1: Retrieve source code from repository
+        stage('Checkout Code') {
+            steps {
+                checkout scm
+                echo '✅ Source code retrieved from GitHub repository'
+            }
+        }
+        
+        // Stage 2: Build container image from Dockerfile
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    echo '🐳 Starting Docker image build process...'
+                    sh "docker build -t ${DOCKER_IMAGE_NAME}:latest ."
+                    sh "echo 'Docker image verification:' && docker images | grep ${DOCKER_IMAGE_NAME}"
+                }
+            }
+        }
+        
+        // Stage 3: Deploy application to Kubernetes cluster
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    echo '🚀 Initiating Kubernetes deployment...'
+                    sh '''
+                        echo "Applying Kubernetes configuration manifests..."
+                        kubectl apply -f kubernetes/
+                        
+                        echo "Monitoring deployment rollout progress..."
+                        kubectl rollout status deployment/flask-app -n flask-app --timeout=300s
+                        
+                        echo "Deployment to Kubernetes completed successfully!"
+                    '''
+                }
+            }
+        }
+        
+        // Stage 4: Validate deployment health and status
+        stage('Verify Deployment') {
+            steps {
+                script {
+                    echo '🔍 Performing deployment verification checks...'
+                    sh '''
+                        echo "=== Pod Status ==="
+                        kubectl get pods -l app=flask-app -n flask-app -o wide
+                        
+                        echo "=== Service Status ==="
+                        kubectl get service flask-service -n flask-app -o wide
+                        
+                        echo "=== Deployment Status ==="
+                        kubectl get deployment flask-app -n flask-app -o wide
+                        
+                        echo "=== Deployment History ==="
+                        kubectl rollout history deployment/flask-app -n flask-app
+                        
+                        echo "=== Current Rollout Status ==="
+                        kubectl rollout status deployment/flask-app -n flask-app
+                    '''
+                }
+            }
+        }
+        
+        // Stage 5: Execute basic functionality tests
+        stage('Smoke Test') {
+            steps {
+                script {
+                    echo '🧪 Executing smoke tests to validate deployment...'
+                    sh '''
+                        echo "Verifying pod availability..."
+                        RUNNING_POD_COUNT=$(kubectl get pods -l app=flask-app -n flask-app --field-selector=status.phase=Running --no-headers | wc -l)
+                        echo "Active running pods detected: $RUNNING_POD_COUNT"
+                        
+                        if [ $RUNNING_POD_COUNT -ge 1 ]; then
+                            echo "✅ Smoke test validation passed - application pods are operational"
+                        else
+                            echo "❌ Smoke test validation failed - no active pods detected"
+                            exit 1
+                        fi
+                    '''
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            echo '🏁 Jenkins pipeline execution finished'
+            script {
+                // Display final cluster state
+                sh '''
+                    echo "=== Final Cluster State Summary ==="
+                    kubectl get pods,services,deployments -l app=flask-app -n flask-app
+                '''
+            }
+        }
+        success {
+            echo '🎉 Pipeline execution successful! Flask application deployed to Kubernetes.'
+        }
+        failure {
+            echo '💥 Pipeline execution failed! Review logs for error details.'
+        }
+    }
+}
